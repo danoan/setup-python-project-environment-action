@@ -1,0 +1,41 @@
+name: Setup Python Project Environment
+description: Creates the same virtual environment using during development
+inputs:
+  checkout-folder:
+    description: Path to folder in which the repository is contained in the docker image.
+    required: true
+  create-venv-script:
+    description: Path to the script that creates the virtual environment
+    required: false
+runs:
+  using: composite
+  steps:
+
+    - if: inputs.create-venv-script != ''
+      name: Reset default value of CREATE_VENV_SCRIPT
+      shell: bash
+      run: echo "CREATE_VENV_SCRIPT=${{ inputs.create-venv-script }}" >> $GITHUB_ENV
+    - if: inputs.create-venv-script == ''
+      name: Set default value of CREATE_VENV_SCRIPT
+      shell: bash
+      run: echo "CREATE_VENV_SCRIPT=${{ inputs.checkout-folder }}/dev/create-venv/create-venv.sh" >> $GITHUB_ENV
+    - name: Register CREATE_VENV_HASH
+      shell: bash
+      run: echo "CREATE_VENV_HASH=${{ hashFiles(env.CREATE_VENV_SCRIPT) }}" >> $GITHUB_ENV
+    - name: Restore cache
+      id: restore-cache
+      uses: actions/cache@v3
+      with:
+        path: ${{ inputs.checkout-folder }}/.venv
+        key: ${{ runner.os }}-build-venv-${{ env.CREATE_VENV_HASH }}
+    - if: ${{ steps.restore-cache.outputs.cache-hit != 'true' }}  
+      name: Create Virtual Environment
+      shell: bash
+      run: ${{ env.CREATE_VENV_SCRIPT }} 
+    - name: Setup PATH
+      shell: bash
+      run: |
+        TEMP_PATH="$(mktemp temp_path.XXXXXXX)"
+        echo "${{ inputs.checkout-folder }}/.venv/bin" > "${TEMP_PATH}"
+        cat "${GITHUB_PATH}" >> "${TEMP_PATH}"
+        cat "${TEMP_PATH}" > "${GITHUB_PATH}"
